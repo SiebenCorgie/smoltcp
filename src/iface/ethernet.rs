@@ -57,7 +57,7 @@ use crate::iface::Routes;
 /// a `&mut [T]`, or `Vec<T>` if a heap is available.
 pub struct Interface<'a, DeviceT: for<'d> Device<'d>> {
     device: DeviceT,
-    inner:  InterfaceInner<'a>,
+    pub inner:  InterfaceInner<'a>,
 }
 
 /// The device independent part of an Ethernet network interface.
@@ -67,13 +67,13 @@ pub struct Interface<'a, DeviceT: for<'d> Device<'d>> {
 /// the `device` mutably until they're used, which makes it impossible to call other
 /// methods on the `Interface` in this time (since its `device` field is borrowed
 /// exclusively). However, it is still possible to call methods on its `inner` field.
-struct InterfaceInner<'a> {
-    neighbor_cache:         NeighborCache<'a>,
-    ethernet_addr:          EthernetAddress,
-    ip_addrs:               ManagedSlice<'a, IpCidr>,
+pub struct InterfaceInner<'a> {
+    pub neighbor_cache:         NeighborCache<'a>,
+    pub ethernet_addr:          EthernetAddress,
+    pub ip_addrs:               ManagedSlice<'a, IpCidr>,
     #[cfg(feature = "proto-ipv4")]
-    any_ip:                 bool,
-    routes:                 Routes<'a>,
+    pub any_ip:                 bool,
+    pub routes:                 Routes<'a>,
     #[cfg(feature = "proto-igmp")]
     ipv4_multicast_groups:  ManagedMap<'a, Ipv4Address, ()>,
     /// When to report for (all or) the next multicast group membership via IGMP
@@ -258,7 +258,7 @@ impl<'a, DeviceT> InterfaceBuilder<'a, DeviceT>
 }
 
 #[derive(Debug, PartialEq)]
-enum EthernetPacket<'a> {
+pub enum EthernetPacket<'a> {
     #[cfg(feature = "proto-ipv4")]
     Arp(ArpRepr),
     Ip(IpPacket<'a>),
@@ -266,7 +266,7 @@ enum EthernetPacket<'a> {
 
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum IpPacket<'a> {
+pub enum IpPacket<'a> {
     #[cfg(feature = "proto-ipv4")]
     Icmpv4((Ipv4Repr, Icmpv4Repr<'a>)),
     #[cfg(feature = "proto-igmp")]
@@ -282,7 +282,7 @@ pub(crate) enum IpPacket<'a> {
 }
 
 impl<'a> IpPacket<'a> {
-    pub(crate) fn ip_repr(&self) -> IpRepr {
+    pub fn ip_repr(&self) -> IpRepr {
         match self {
             #[cfg(feature = "proto-ipv4")]
             IpPacket::Icmpv4((ipv4_repr, _)) => IpRepr::Ipv4(*ipv4_repr),
@@ -376,7 +376,7 @@ enum IgmpReportState {
 }
 
 impl<'a, DeviceT> Interface<'a, DeviceT>
-        where DeviceT: for<'d> Device<'d> {
+where DeviceT: for<'d> Device<'d> {
     /// Get the Ethernet address of the interface.
     pub fn ethernet_addr(&self) -> EthernetAddress {
         self.inner.ethernet_addr
@@ -743,6 +743,21 @@ impl<'a, DeviceT> Interface<'a, DeviceT>
 }
 
 impl<'a> InterfaceInner<'a> {
+
+    ///Copy the state of `self` into `other`.
+    pub fn copy_state_into(&self, other: &mut Self){
+       self.neighbor_cache.copy_into(&mut other.neighbor_cache);
+       other.ethernet_addr = self.ethernet_addr.clone();
+       //copy ip addresses
+       for (idx, ip) in self.ip_addrs.iter().enumerate(){
+           other.ip_addrs[idx] = *ip;
+       }
+
+       other.any_ip = self.any_ip;
+       self.routes.copy_into(&mut other.routes);
+    }
+
+    
     fn check_ethernet_addr(addr: &EthernetAddress) {
         if addr.is_multicast() {
             panic!("Ethernet address {} is not unicast", addr)
@@ -810,7 +825,7 @@ impl<'a> InterfaceInner<'a> {
         }
     }
 
-    fn process_ethernet<'frame, T: AsRef<[u8]>>
+    pub fn process_ethernet<'frame, T: AsRef<[u8]>>
                        (&mut self, sockets: &mut SocketSet, timestamp: Instant, frame: &'frame T) ->
                        Result<Option<EthernetPacket<'frame>>>
     {
@@ -1454,7 +1469,7 @@ impl<'a> InterfaceInner<'a> {
         }
     }
 
-    fn dispatch<Tx>(&mut self, tx_token: Tx, timestamp: Instant,
+    pub fn dispatch<Tx>(&mut self, tx_token: Tx, timestamp: Instant,
                     packet: EthernetPacket) -> Result<()>
         where Tx: TxToken
     {
@@ -1515,7 +1530,7 @@ impl<'a> InterfaceInner<'a> {
         }
     }
 
-    fn has_neighbor(&self, addr: &IpAddress, timestamp: Instant) -> bool {
+    pub fn has_neighbor(&self, addr: &IpAddress, timestamp: Instant) -> bool {
         match self.route(addr, timestamp) {
             Ok(routed_addr) => {
                 self.neighbor_cache

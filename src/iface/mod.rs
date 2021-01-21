@@ -8,7 +8,7 @@ provides lookup and caching of hardware addresses, and handles management packet
 mod neighbor;
 mod route;
 #[cfg(feature = "ethernet")]
-mod ethernet;
+pub mod ethernet;
 
 #[cfg(feature = "ethernet")]
 pub use self::neighbor::Neighbor as Neighbor;

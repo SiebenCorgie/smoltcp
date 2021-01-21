@@ -21,7 +21,7 @@ mod icmp;
 #[cfg(feature = "socket-udp")]
 mod udp;
 #[cfg(feature = "socket-tcp")]
-mod tcp;
+pub mod tcp;
 mod set;
 mod ref_;
 

@@ -32,7 +32,7 @@ impl Default for NeighborState {
 pub struct Meta {
     /// Handle of this socket within its enclosing `SocketSet`.
     /// Mainly useful for debug output.
-    pub(crate) handle: SocketHandle,
+    pub handle: SocketHandle,
     /// See [NeighborState](struct.NeighborState.html).
     neighbor_state:    NeighborState,
 }
@@ -58,7 +58,7 @@ impl Meta {
         }
     }
 
-    pub(crate) fn egress_permitted<F>(&mut self, timestamp: Instant, has_neighbor: F) -> bool
+    pub fn egress_permitted<F>(&mut self, timestamp: Instant, has_neighbor: F) -> bool
         where F: Fn(IpAddress) -> bool
     {
         match self.neighbor_state {
@@ -80,7 +80,7 @@ impl Meta {
         }
     }
 
-    pub(crate) fn neighbor_missing(&mut self, timestamp: Instant, neighbor: IpAddress) {
+    pub fn neighbor_missing(&mut self, timestamp: Instant, neighbor: IpAddress) {
         net_trace!("{}: neighbor {} missing, silencing until t+{}",
                    self.handle, neighbor, Self::DISCOVERY_SILENT_TIME);
         self.neighbor_state = NeighborState::Waiting {

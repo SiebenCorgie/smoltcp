@@ -66,6 +66,13 @@ pub struct Routes<'a> {
 }
 
 impl<'a> Routes<'a> {
+    pub fn copy_into(&self, other: &mut Self){
+       other.storage.clear();
+       for (k,v) in self.storage.iter(){
+           other.storage.insert(*k, *v).expect("Failed to copy routes state");
+       }
+    }
+
     /// Creates a routing tables. The backing storage is **not** cleared
     /// upon creation.
     pub fn new<T>(storage: T) -> Routes<'a>

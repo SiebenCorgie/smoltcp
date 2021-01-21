@@ -78,7 +78,7 @@ const CONTIG_COUNT: usize = 4;
 /// A buffer (re)assembler.
 ///
 /// Currently, up to a hardcoded limit of 4 or 32 holes can be tracked in the buffer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq, Eq, Clone))]
 pub struct Assembler {
     #[cfg(not(any(feature = "std", feature = "alloc")))]
@@ -100,6 +100,14 @@ impl fmt::Display for Assembler {
 }
 
 impl Assembler {
+
+    ///Copies self's state into a new Assembler
+    pub fn copy_state(&self) -> Self{
+	Assembler{
+            contigs: self.contigs.clone()
+	}
+    }
+    
     /// Create a new buffer assembler for buffers of the given size.
     pub fn new(size: usize) -> Assembler {
         #[cfg(not(any(feature = "std", feature = "alloc")))]

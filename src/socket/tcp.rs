@@ -67,7 +67,7 @@ const RTTE_MAX_RTO: u32 = 10000;
 
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-struct RttEstimator {
+pub struct RttEstimator {
     // Using u32 instead of Duration to save space (Duration is i64)
     rtt: u32,
     deviation: u32,
@@ -148,7 +148,7 @@ impl RttEstimator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum Timer {
+pub enum Timer {
     Idle {
         keep_alive_at: Option<Instant>,
     },
@@ -279,74 +279,75 @@ impl Timer {
 /// attempts will be reset.
 #[derive(Debug)]
 pub struct TcpSocket<'a> {
-    pub(crate) meta: SocketMeta,
-    state:           State,
-    timer:           Timer,
-    rtte:            RttEstimator,
-    assembler:       Assembler,
-    rx_buffer:       SocketBuffer<'a>,
-    rx_fin_received: bool,
-    tx_buffer:       SocketBuffer<'a>,
+    pub reset_state: bool,
+    pub meta: SocketMeta,
+    pub state:           State,
+    pub timer:           Timer,
+    pub rtte:            RttEstimator,
+    pub assembler:       Assembler,
+    pub rx_buffer:       SocketBuffer<'a>,
+    pub rx_fin_received: bool,
+    pub tx_buffer:       SocketBuffer<'a>,
     /// Interval after which, if no inbound packets are received, the connection is aborted.
-    timeout:         Option<Duration>,
+    pub timeout:         Option<Duration>,
     /// Interval at which keep-alive packets will be sent.
-    keep_alive:      Option<Duration>,
+    pub keep_alive:      Option<Duration>,
     /// The time-to-live (IPv4) or hop limit (IPv6) value used in outgoing packets.
-    hop_limit:       Option<u8>,
+    pub hop_limit:       Option<u8>,
     /// Address passed to listen(). Listen address is set when listen() is called and
     /// used every time the socket is reset back to the LISTEN state.
-    listen_address:  IpAddress,
+    pub listen_address:  IpAddress,
     /// Current local endpoint. This is used for both filtering the incoming packets and
     /// setting the source address. When listening or initiating connection on/from
     /// an unspecified address, this field is updated with the chosen source address before
     /// any packets are sent.
-    local_endpoint:  IpEndpoint,
+    pub local_endpoint:  IpEndpoint,
     /// Current remote endpoint. This is used for both filtering the incoming packets and
     /// setting the destination address. If the remote endpoint is unspecified, it means that
     /// aborting the connection will not send an RST, and, in TIME-WAIT state, will not
     /// send an ACK.
-    remote_endpoint: IpEndpoint,
+    pub remote_endpoint: IpEndpoint,
     /// The sequence number corresponding to the beginning of the transmit buffer.
     /// I.e. an ACK(local_seq_no+n) packet removes n bytes from the transmit buffer.
-    local_seq_no:    TcpSeqNumber,
+    pub local_seq_no:    TcpSeqNumber,
     /// The sequence number corresponding to the beginning of the receive buffer.
     /// I.e. userspace reading n bytes adds n to remote_seq_no.
-    remote_seq_no:   TcpSeqNumber,
+    pub remote_seq_no:   TcpSeqNumber,
     /// The last sequence number sent.
     /// I.e. in an idle socket, local_seq_no+tx_buffer.len().
-    remote_last_seq: TcpSeqNumber,
+    pub remote_last_seq: TcpSeqNumber,
     /// The last acknowledgement number sent.
     /// I.e. in an idle socket, remote_seq_no+rx_buffer.len().
-    remote_last_ack: Option<TcpSeqNumber>,
+    pub remote_last_ack: Option<TcpSeqNumber>,
     /// The last window length sent.
-    remote_last_win: u16,
+    pub remote_last_win: u16,
     /// The sending window scaling factor advertised to remotes which support RFC 1323.
     /// It is zero if the window <= 64KiB and/or the remote does not support it.
-    remote_win_shift: u8,
+    pub remote_win_shift: u8,
     /// The remote window size, relative to local_seq_no
     /// I.e. we're allowed to send octets until local_seq_no+remote_win_len
-    remote_win_len:  usize,
+    pub remote_win_len:  usize,
     /// The receive window scaling factor for remotes which support RFC 1323, None if unsupported.
-    remote_win_scale: Option<u8>,
+    pub remote_win_scale: Option<u8>,
     /// Whether or not the remote supports selective ACK as described in RFC 2018.
-    remote_has_sack: bool,
+    pub remote_has_sack: bool,
     /// The maximum number of data octets that the remote side may receive.
-    remote_mss:      usize,
+    pub remote_mss:      usize,
     /// The timestamp of the last packet received.
-    remote_last_ts:  Option<Instant>,
+    pub remote_last_ts:  Option<Instant>,
     /// The sequence number of the last packet recived, used for sACK
-    local_rx_last_seq: Option<TcpSeqNumber>,
+    pub local_rx_last_seq: Option<TcpSeqNumber>,
     /// The ACK number of the last packet recived.
-    local_rx_last_ack: Option<TcpSeqNumber>,
+    pub local_rx_last_ack: Option<TcpSeqNumber>,
     /// The number of packets recived directly after
     /// each other which have the same ACK number.
-    local_rx_dup_acks: u8,
+    pub local_rx_dup_acks: u8,
 
     /// Duration for Delayed ACK. If None no ACKs will be delayed.
-    ack_delay:       Option<Duration>,
+    pub ack_delay:       Option<Duration>,
     /// Delayed ack timer. If set, packets containing exclusively
     /// ACK or window updates (ie, no data) won't be sent until expiry.
-    ack_delay_until: Option<Instant>,
+    pub ack_delay_until: Option<Instant>,
 
     #[cfg(feature = "async")]
     rx_waker: WakerRegistration,
@@ -376,6 +377,7 @@ impl<'a> TcpSocket<'a> {
             rx_capacity.leading_zeros() as usize;
 
         TcpSocket {
+	    reset_state:     false,
             meta:            SocketMeta::default(),
             state:           State::Closed,
             timer:           Timer::default(),
@@ -574,8 +576,18 @@ impl<'a> TcpSocket<'a> {
         self.state
     }
 
-    fn reset(&mut self) {
-        let rx_cap_log2 = mem::size_of::<usize>() * 8 -
+    pub fn take_reset_state(&mut self) -> bool{
+	if self.reset_state{
+            self.reset_state = false;
+            true
+	}else{
+            false
+	}
+    }
+
+    pub fn reset(&mut self) {
+	self.reset_state = true;
+	let rx_cap_log2 = mem::size_of::<usize>() * 8 -
             self.rx_buffer.capacity().leading_zeros() as usize;
 
         self.state           = State::Closed;
@@ -1126,7 +1138,7 @@ impl<'a> TcpSocket<'a> {
         true
     }
 
-    pub(crate) fn process(&mut self, timestamp: Instant, ip_repr: &IpRepr, repr: &TcpRepr) ->
+    pub fn process(&mut self, timestamp: Instant, ip_repr: &IpRepr, repr: &TcpRepr) ->
                          Result<Option<(IpRepr, TcpRepr<'static>)>> {
         debug_assert!(self.accepts(ip_repr, repr));
 
@@ -1187,6 +1199,7 @@ impl<'a> TcpSocket<'a> {
             // Every acknowledgement must be for transmitted but unacknowledged data.
             (_, &TcpRepr { ack_number: Some(ack_number), .. }) => {
                 let unacknowledged = self.tx_buffer.len() + control_len;
+		//net_trace!("{}    Got acknumber {} but localseq {} with {} unacked", self.local_endpoint, ack_number, self.local_seq_no, unacknowledged);
                 if ack_number < self.local_seq_no {
                     net_debug!("{}:{}:{}: duplicate ACK ({} not in {}...{})",
                                self.meta.handle, self.local_endpoint, self.remote_endpoint,
@@ -1322,7 +1335,8 @@ impl<'a> TcpSocket<'a> {
                 self.local_endpoint  = IpEndpoint::new(ip_repr.dst_addr(), repr.dst_port);
                 self.remote_endpoint = IpEndpoint::new(ip_repr.src_addr(), repr.src_port);
                 // FIXME: use something more secure here
-                self.local_seq_no    = TcpSeqNumber(-repr.seq_number.0);
+		self.local_seq_no    = TcpSeqNumber(-repr.seq_number.0);
+		//net_trace!("[1] {}   changed local_seq_no to: {}", self.local_endpoint, self.local_seq_no);
                 self.remote_seq_no   = repr.seq_number + 1;
                 self.remote_last_seq = self.local_seq_no;
                 self.remote_has_sack = repr.sack_permitted;
@@ -1513,6 +1527,8 @@ impl<'a> TcpSocket<'a> {
             // We've processed everything in the incoming segment, so advance the local
             // sequence number past it.
             self.local_seq_no = ack_number;
+	    //net_trace!("[2] {}   changed local_seq_no to: {}", self.local_endpoint, self.local_seq_no);
+
             // During retransmission, if an earlier segment got lost but later was
             // successfully received, self.local_seq_no can move past self.remote_last_seq.
             // Do not attempt to retransmit the latter segments; not only this is pointless
@@ -1662,7 +1678,7 @@ impl<'a> TcpSocket<'a> {
         }
     }
 
-    pub(crate) fn dispatch<F>(&mut self, timestamp: Instant, caps: &DeviceCapabilities,
+    pub fn dispatch<F>(&mut self, timestamp: Instant, caps: &DeviceCapabilities,
                               emit: F) -> Result<()>
             where F: FnOnce((IpRepr, TcpRepr)) -> Result<()> {
         if !self.remote_endpoint.is_specified() { return Err(Error::Exhausted) }

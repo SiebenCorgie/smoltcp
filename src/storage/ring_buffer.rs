@@ -1,11 +1,13 @@
 // Uncomment the #[must_use]s here once [RFC 1940] hits stable.
 // [RFC 1940]: https://github.com/rust-lang/rust/issues/43302
-
 use core::cmp;
 use managed::ManagedSlice;
 
 use crate::{Error, Result};
 use crate::storage::Resettable;
+
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 /// A ring buffer.
 ///
@@ -26,6 +28,31 @@ pub struct RingBuffer<'a, T: 'a> {
     storage: ManagedSlice<'a, T>,
     read_at: usize,
     length:  usize,
+}
+
+#[cfg(feature = "alloc")]
+impl<'a, T: 'a + Clone> RingBuffer<'a, T>{
+    ///Copies the own state into `other`
+    pub fn copy_into(&self, other: &mut Self){
+       other.read_at = self.read_at;
+       other.length = self.length;
+
+       for (idx, b) in self.storage.iter().enumerate(){
+           other.storage[idx] = b.clone();
+       }
+    }
+
+    pub fn into_standalone(&self) -> (Vec<T>, usize, usize){
+       (self.storage.iter().map(|a| a.clone()).collect(), self.read_at, self.length)
+   }
+
+    pub fn from_standalone(&mut self, data: Vec<T>, read_at: usize, length: usize){
+       for (val, to_copy) in self.storage.iter_mut().zip(data.into_iter()){
+           *val = to_copy;
+       }
+       self.read_at = read_at;
+       self.length = length;
+    }
 }
 
 impl<'a, T: 'a> RingBuffer<'a, T> {
