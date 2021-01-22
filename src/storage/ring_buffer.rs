@@ -30,8 +30,27 @@ pub struct RingBuffer<'a, T: 'a> {
     length:  usize,
 }
 
-#[cfg(feature = "alloc")]
 impl<'a, T: 'a + Clone> RingBuffer<'a, T>{
+
+    pub fn into_standalone<S>(&self, target_slice: S) -> (usize, usize)
+    where S: Into<ManagedSlice<'a, T>>
+    {
+	let mut target_slice = target_slice.into();
+	for (idx, v) in self.storage.iter().enumerate(){
+	    target_slice[idx] = v.clone();
+	}
+	(self.read_at, self.length)
+   }
+
+    pub fn from_standalone<'b>(&mut self, data: ManagedSlice<'b, T>, read_at: usize, length: usize){
+	
+	for (val, to_copy) in self.storage.iter_mut().zip(data.iter()){
+	    *val = to_copy.clone();
+	}
+	self.read_at = read_at;
+	self.length = length;
+    }
+    
     ///Copies the own state into `other`
     pub fn copy_into(&self, other: &mut Self){
        other.read_at = self.read_at;
@@ -41,21 +60,10 @@ impl<'a, T: 'a + Clone> RingBuffer<'a, T>{
            other.storage[idx] = b.clone();
        }
     }
-
-    pub fn into_standalone(&self) -> (Vec<T>, usize, usize){
-       (self.storage.iter().map(|a| a.clone()).collect(), self.read_at, self.length)
-   }
-
-    pub fn from_standalone(&mut self, data: Vec<T>, read_at: usize, length: usize){
-       for (val, to_copy) in self.storage.iter_mut().zip(data.into_iter()){
-           *val = to_copy;
-       }
-       self.read_at = read_at;
-       self.length = length;
-    }
 }
-
 impl<'a, T: 'a> RingBuffer<'a, T> {
+
+    
     /// Create a ring buffer with the given storage.
     ///
     /// During creation, every element in `storage` is reset.

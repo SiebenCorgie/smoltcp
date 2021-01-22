@@ -5,8 +5,6 @@ use managed::ManagedMap;
 
 use crate::wire::{EthernetAddress, IpAddress};
 use crate::time::{Duration, Instant};
-#[cfg(feature = "alloc")]
-use alloc::collections::BTreeMap;
 
 /// A cached neighbor.
 ///
@@ -77,21 +75,30 @@ impl<'a> Cache<'a> {
     /// Default number of entries in the cache before GC kicks in
     pub(crate) const GC_THRESHOLD: usize = 1024;
 
-    ///Copies the internal state by cloning the BTreeMap that holds routes as well as the silent state and the gc threshold
-    pub fn into_standalone(&self) -> (BTreeMap<IpAddress, Neighbor>, Instant, usize){
-	let map = match &self.storage{
-            ManagedMap::Owned(map) => map.clone(),
-            _ => panic!("Neighbor cache was no btree map")
-	};
-	(
-            map, self.silent_until, self.gc_threshold
-	)
+    ///Copies the internal state into some managed map
+    pub fn into_standalone<'b, T>(&self, target_map: T) -> (Instant, usize)
+	where T: Into<ManagedMap<'b, IpAddress, Neighbor>>
+    {
+	let mut target_map: ManagedMap<'b, IpAddress, Neighbor> = target_map.into();
+	target_map.clear();
+	for (k,v) in self.storage.iter(){
+	    target_map.insert(*k, *v).expect("Failed to push map item into standalone map");
+	}
+	
+	(self.silent_until, self.gc_threshold)
     }
 
-    pub fn from_standalone(&mut self, (map, silent_until, gc_threshold): (BTreeMap<IpAddress, Neighbor>, Instant, usize)){
+    pub fn from_standalone<'b, T>(&mut self, map: T, silent_until: Instant, gc_threshold: usize)
+	where T: Into<ManagedMap<'b, IpAddress, Neighbor>>
+    {
+	let map = map.into();
 	self.silent_until = silent_until;
 	self.gc_threshold = gc_threshold;
-	self.storage = ManagedMap::Owned(map);
+
+	self.storage.clear();
+	for (k,v) in map.iter(){
+	    self.storage.insert(*k, *v).expect("Failed to insert standalone map item into existing map");
+	}
     }
 
     ///Copys internal state into some other cache, assuming that the others storage is

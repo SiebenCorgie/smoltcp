@@ -745,7 +745,7 @@ where DeviceT: for<'d> Device<'d> {
 impl<'a> InterfaceInner<'a> {
 
     ///Copy the state of `self` into `other`.
-    pub fn copy_state_into(&self, other: &mut Self){
+    pub fn copy_state_into<'b>(&self, other: &'b mut Self){
        self.neighbor_cache.copy_into(&mut other.neighbor_cache);
        other.ethernet_addr = self.ethernet_addr.clone();
        //copy ip addresses

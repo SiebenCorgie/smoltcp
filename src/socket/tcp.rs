@@ -1148,7 +1148,7 @@ impl<'a> TcpSocket<'a> {
             State::SynSent | State::SynReceived => (true, false),
             // In FIN-WAIT-1, LAST-ACK, or CLOSING, we've just sent a FIN.
             State::FinWait1 | State::LastAck | State::Closing => (false, true),
-            // In all other states we've already got acknowledgemetns for
+            // In all other states we've already got acknowledgments for
             // all of the control flags we sent.
             _ => (false, false)
         };
@@ -1459,6 +1459,7 @@ impl<'a> TcpSocket<'a> {
             }
 
             _ => {
+		net_debug!("state = {}, control_seq = {:?}", self.state, control);
                 net_debug!("{}:{}:{}: unexpected packet {}",
                            self.meta.handle, self.local_endpoint, self.remote_endpoint, repr);
                 return Err(Error::Dropped)
